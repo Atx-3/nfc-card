@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import API_URL from '../lib/api'
 
 export default function LoginPage() {
   const { user, isLoading } = useAuth()
@@ -29,7 +30,7 @@ export default function LoginPage() {
         </div>
 
         <a
-          href="http://localhost:3000/api/auth/google"
+          href={`${API_URL}/api/auth/google`}
           className="w-full bg-white text-black border border-outline-variant/30 py-4 rounded-xl font-label-sm uppercase tracking-widest hover:bg-gray-50 hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-3 relative z-10 cursor-pointer no-underline"
         >
           <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google logo" className="w-5 h-5" />

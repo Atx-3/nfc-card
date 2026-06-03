@@ -11,8 +11,23 @@ const app = express()
 const prisma = new PrismaClient()
 const JWT_SECRET = process.env.JWT_SECRET || 'brandeazy_super_secret_key_123'
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || ''
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000'
 
-app.use(cors({ origin: 'http://localhost:5173', credentials: true }))
+// Allow multiple origins: localhost for dev, Vercel URL for prod
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  FRONTEND_URL
+].filter(Boolean)
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true)
+    callback(new Error('Not allowed by CORS'))
+  },
+  credentials: true
+}))
 app.use(express.json())
 app.use(cookieParser())
 
@@ -21,7 +36,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID !== 'YOUR_GOOGL
   passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    callbackURL: 'http://localhost:3000/api/auth/google/callback'
+    callbackURL: `${BACKEND_URL}/api/auth/google/callback`
   }, async (accessToken, refreshToken, profile, done) => {
     try {
       const email = profile.emails?.[0].value || ''
@@ -76,12 +91,12 @@ app.get('/api/auth/google', (req, res, next) => {
 app.get('/api/auth/google/callback', passport.authenticate('google', { session: false }), (req, res) => {
   const user: any = req.user
   const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' })
-  res.cookie('token', token, { httpOnly: true, secure: false, maxAge: 7 * 24 * 60 * 60 * 1000 })
+  res.cookie('token', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', maxAge: 7 * 24 * 60 * 60 * 1000 })
   // Admin goes to /admin, regular users go to /dashboard
   if (user.email === ADMIN_EMAIL) {
-    res.redirect('http://localhost:5173/admin')
+    res.redirect(`${FRONTEND_URL}/admin`)
   } else {
-    res.redirect('http://localhost:5173/dashboard')
+    res.redirect(`${FRONTEND_URL}/dashboard`)
   }
 })
 

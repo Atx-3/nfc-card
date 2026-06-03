@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
 import { useAuth } from '../contexts/AuthContext'
+import API_URL from '../lib/api'
 
 axios.defaults.withCredentials = true
 
@@ -35,7 +36,7 @@ export default function UserDashboard() {
 
   const fetchOrders = async () => {
     try {
-      const res = await axios.get('http://localhost:3000/api/orders/my')
+      const res = await axios.get(`${API_URL}/api/orders/my`)
       setOrders(res.data)
     } catch (e) {
       console.error(e)

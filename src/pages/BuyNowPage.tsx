@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import API_URL from '../lib/api'
 
 export default function BuyNowPage() {
   const navigate = useNavigate()
@@ -51,7 +52,7 @@ export default function BuyNowPage() {
     
     setIsSubmitting(true)
     try {
-      const response = await fetch('http://localhost:3000/api/orders', {
+      const response = await fetch(`${API_URL}/api/orders`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

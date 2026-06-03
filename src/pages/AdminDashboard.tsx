@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
 import { useAuth } from '../contexts/AuthContext'
+import API_URL from '../lib/api'
 
 axios.defaults.withCredentials = true
 
@@ -46,8 +47,8 @@ export default function AdminDashboard() {
   const fetchAll = async () => {
     try {
       const [ordersRes, usersRes] = await Promise.all([
-        axios.get('http://localhost:3000/api/orders'),
-        axios.get('http://localhost:3000/api/users')
+        axios.get(`${API_URL}/api/orders`),
+        axios.get(`${API_URL}/api/users`)
       ])
       setOrders(ordersRes.data)
       setUsers(usersRes.data)
@@ -69,7 +70,7 @@ export default function AdminDashboard() {
     if (!selectedOrder) return
     setUpdating(true)
     try {
-      await axios.patch(`http://localhost:3000/api/orders/${selectedOrder.id}/status`, { status: newStatus })
+      await axios.patch(`${API_URL}/api/orders/${selectedOrder.id}/status`, { status: newStatus })
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: newStatus } : o))
       setSelectedOrder({ ...selectedOrder, status: newStatus })
     } catch (e) {

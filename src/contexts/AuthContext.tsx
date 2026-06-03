@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import axios from 'axios'
+import API_URL from '../lib/api'
 
 axios.defaults.withCredentials = true
 
@@ -35,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchMe = async () => {
     try {
-      const res = await axios.get('http://localhost:3000/api/auth/me')
+      const res = await axios.get(`${API_URL}/api/auth/me`)
       setUser(res.data)
     } catch {
       setUser(null)
@@ -46,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      await axios.get('http://localhost:3000/api/auth/logout')
+      await axios.get(`${API_URL}/api/auth/logout`)
     } catch {}
     setUser(null)
     window.location.href = '/'
