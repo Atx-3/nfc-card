@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import express from 'express'
+import express, { Request, Response, NextFunction } from 'express'
 import cors from 'cors'
 import { PrismaClient } from '@prisma/client'
 import passport from 'passport'
@@ -9,11 +9,14 @@ import cookieParser from 'cookie-parser'
 
 const app = express()
 const prisma = new PrismaClient()
+const JWT_SECRET = process.env.JWT_SECRET || 'brandeazy_super_secret_key_123'
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || ''
 
 app.use(cors({ origin: 'http://localhost:5173', credentials: true }))
 app.use(express.json())
 app.use(cookieParser())
 
+// ── PASSPORT GOOGLE STRATEGY ───────────────────────────────────────────────
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID !== 'YOUR_GOOGLE_CLIENT_ID') {
   passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
@@ -24,22 +27,13 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID !== 'YOUR_GOOGL
       const email = profile.emails?.[0].value || ''
       const name = profile.displayName || ''
       const googleId = profile.id
-      
+      const picture = profile.photos?.[0].value || ''
+
       let user = await prisma.user.findUnique({ where: { email } })
       if (!user) {
-        user = await prisma.user.create({
-          data: {
-            email,
-            name,
-            googleId,
-            cardType: 'Standard'
-          }
-        })
-      } else if (!user.googleId) {
-        user = await prisma.user.update({
-          where: { email },
-          data: { googleId }
-        })
+        user = await prisma.user.create({ data: { email, name, googleId, picture, cardType: 'Standard' } })
+      } else {
+        user = await prisma.user.update({ where: { email }, data: { googleId, picture, name } })
       }
       return done(null, user)
     } catch (err: any) {
@@ -48,104 +42,47 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID !== 'YOUR_GOOGL
   }))
 }
 
-// Create a mock user on start if it doesn't exist to simulate auth
-async function initSeed() {
+// ── AUTH MIDDLEWARE ────────────────────────────────────────────────────────
+async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const token = req.cookies?.token
+  if (!token) return res.status(401).json({ error: 'Unauthorized' })
   try {
-    const count = await prisma.user.count()
-    if (count === 0) {
-      await prisma.user.create({
-        data: {
-          email: 'alex@sterling.com',
-          name: 'Alexander Sterling',
-          cardType: 'Metal'
-        }
-      })
-      console.log('Seeded initial user.')
-    }
-  } catch (err) {
-    console.error('Failed to seed:', err)
+    const decoded: any = jwt.verify(token, JWT_SECRET)
+    const user = await prisma.user.findUnique({ where: { id: decoded.id } })
+    if (!user) return res.status(401).json({ error: 'User not found' });
+    (req as any).user = user
+    next()
+  } catch {
+    res.status(401).json({ error: 'Invalid token' })
   }
 }
-initSeed()
 
-// GET /api/users
-app.get('/api/users', async (req, res) => {
-  try {
-    const users = await prisma.user.findMany({
-      orderBy: { createdAt: 'desc' }
-    })
-    res.json(users)
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch users' })
+function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  const user = (req as any).user
+  if (!user || user.email !== ADMIN_EMAIL) {
+    return res.status(403).json({ error: 'Forbidden: Admins only' })
   }
-})
+  next()
+}
 
-// GET /api/orders
-app.get('/api/orders', async (req, res) => {
-  try {
-    const orders = await prisma.order.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: { user: true }
-    })
-    res.json(orders)
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch orders' })
-  }
-})
-
-// POST /api/orders
-app.post('/api/orders', async (req, res) => {
-  try {
-    const { customerName, customerEmail, productType, totalPrice, shippingAddress } = req.body
-    
-    // Auto-generate an order number
-    const orderNumber = '#BE-' + Math.floor(10000 + Math.random() * 90000)
-
-    const order = await prisma.order.create({
-      data: {
-        orderNumber,
-        customerName,
-        customerEmail,
-        productType,
-        totalPrice,
-        shippingAddress
-      }
-    })
-    res.status(201).json(order)
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to create order' })
-  }
-})
-
-// PATCH /api/orders/:id/status
-app.patch('/api/orders/:id/status', async (req, res) => {
-  try {
-    const { id } = req.params
-    const { status } = req.body
-    
-    const updatedOrder = await prisma.order.update({
-      where: { id },
-      data: { status }
-    })
-    res.json(updatedOrder)
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update order status' })
-  }
-})
-
-// Google OAuth endpoints
+// ── AUTH ROUTES ────────────────────────────────────────────────────────────
 app.get('/api/auth/google', (req, res, next) => {
   if (!process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID') {
-    return res.status(500).send('Google Auth is not configured. Please add GOOGLE_CLIENT_ID to server/.env')
+    return res.status(500).send('Google Auth not configured. Add GOOGLE_CLIENT_ID to server/.env')
   }
   passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next)
 })
 
 app.get('/api/auth/google/callback', passport.authenticate('google', { session: false }), (req, res) => {
   const user: any = req.user
-  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET || 'brandeazy_super_secret_key_123', { expiresIn: '7d' })
+  const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' })
   res.cookie('token', token, { httpOnly: true, secure: false, maxAge: 7 * 24 * 60 * 60 * 1000 })
-  res.redirect('http://localhost:5173/admin')
+  // Admin goes to /admin, regular users go to /dashboard
+  if (user.email === ADMIN_EMAIL) {
+    res.redirect('http://localhost:5173/admin')
+  } else {
+    res.redirect('http://localhost:5173/dashboard')
+  }
 })
 
 app.get('/api/auth/logout', (req, res) => {
@@ -153,21 +90,110 @@ app.get('/api/auth/logout', (req, res) => {
   res.json({ success: true })
 })
 
-app.get('/api/auth/me', async (req, res) => {
-  const token = req.cookies?.token
-  if (!token) return res.status(401).json({ error: 'Unauthorized' })
-  
+app.get('/api/auth/me', requireAuth, (req, res) => {
+  const user: any = (req as any).user
+  res.json({ ...user, isAdmin: user.email === ADMIN_EMAIL })
+})
+
+// ── USER ROUTES (admin only) ───────────────────────────────────────────────
+app.get('/api/users', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const decoded: any = jwt.verify(token, process.env.JWT_SECRET || 'brandeazy_super_secret_key_123')
-    const user = await prisma.user.findUnique({ where: { id: decoded.id } })
-    if (!user) return res.status(401).json({ error: 'User not found' })
-    res.json(user)
-  } catch (err) {
-    res.status(401).json({ error: 'Invalid token' })
+    const users = await prisma.user.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { orders: true }
+    })
+    res.json(users)
+  } catch {
+    res.status(500).json({ error: 'Failed to fetch users' })
+  }
+})
+
+// ── ORDER ROUTES ───────────────────────────────────────────────────────────
+
+// GET all orders (admin only)
+app.get('/api/orders', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const orders = await prisma.order.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { user: true }
+    })
+    res.json(orders)
+  } catch {
+    res.status(500).json({ error: 'Failed to fetch orders' })
+  }
+})
+
+// GET current user's orders
+app.get('/api/orders/my', requireAuth, async (req, res) => {
+  try {
+    const user: any = (req as any).user
+    const orders = await prisma.order.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' }
+    })
+    res.json(orders)
+  } catch {
+    res.status(500).json({ error: 'Failed to fetch your orders' })
+  }
+})
+
+// GET single order by ID
+app.get('/api/orders/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params
+    const user: any = (req as any).user
+    const order = await prisma.order.findUnique({ where: { id }, include: { user: true } })
+    if (!order) return res.status(404).json({ error: 'Order not found' })
+    // Only owner or admin can fetch
+    if (order.userId !== user.id && user.email !== ADMIN_EMAIL) {
+      return res.status(403).json({ error: 'Forbidden' })
+    }
+    res.json(order)
+  } catch {
+    res.status(500).json({ error: 'Failed to fetch order' })
+  }
+})
+
+// POST create order (requires auth)
+app.post('/api/orders', requireAuth, async (req, res) => {
+  try {
+    const user: any = (req as any).user
+    const { customerName, customerEmail, customerPhone, productType, totalPrice, shippingAddress } = req.body
+    const orderNumber = '#BE-' + Math.floor(10000 + Math.random() * 90000)
+
+    const order = await prisma.order.create({
+      data: {
+        orderNumber,
+        userId: user.id,
+        customerName,
+        customerEmail,
+        customerPhone,
+        productType,
+        totalPrice,
+        shippingAddress,
+        status: 'Order Placed'
+      }
+    })
+    res.status(201).json(order)
+  } catch {
+    res.status(500).json({ error: 'Failed to create order' })
+  }
+})
+
+// PATCH update order status (admin only)
+app.patch('/api/orders/:id/status', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { status } = req.body
+    const updatedOrder = await prisma.order.update({ where: { id }, data: { status } })
+    res.json(updatedOrder)
+  } catch {
+    res.status(500).json({ error: 'Failed to update order status' })
   }
 })
 
 const PORT = process.env.PORT || 3000
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`)
+  console.log(`✅ Server running on http://localhost:${PORT}`)
+  console.log(`   Admin email: ${ADMIN_EMAIL || '(not set — update ADMIN_EMAIL in .env)'}`)
 })

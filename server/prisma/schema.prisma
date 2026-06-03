@@ -12,6 +12,7 @@ model User {
   googleId  String?  @unique
   email     String   @unique
   name      String
+  picture   String?
   cardType  String   @default("Standard")
   createdAt DateTime @default(now())
   orders    Order[]
@@ -24,9 +25,10 @@ model Order {
   user            User?    @relation(fields: [userId], references: [id])
   customerName    String
   customerEmail   String
+  customerPhone   String?
   productType     String
   totalPrice      String
-  status          String   @default("Processing")
+  status          String   @default("Order Placed")
   shippingAddress String?
   createdAt       DateTime @default(now())
 }
