@@ -140,7 +140,7 @@ app.get('/api/orders/my', requireAuth, async (req, res) => {
 // GET single order by ID
 app.get('/api/orders/:id', requireAuth, async (req, res) => {
   try {
-    const { id } = req.params
+    const id = req.params.id as string
     const user: any = (req as any).user
     const order = await prisma.order.findUnique({ where: { id }, include: { user: true } })
     if (!order) return res.status(404).json({ error: 'Order not found' })
@@ -183,7 +183,7 @@ app.post('/api/orders', requireAuth, async (req, res) => {
 // PATCH update order status (admin only)
 app.patch('/api/orders/:id/status', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { id } = req.params
+    const id = req.params.id as string
     const { status } = req.body
     const updatedOrder = await prisma.order.update({ where: { id }, data: { status } })
     res.json(updatedOrder)

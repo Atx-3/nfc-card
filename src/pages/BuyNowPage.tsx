@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function BuyNowPage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [productType, setProductType] = useState<'standard' | 'premium'>('premium')
   const [isHovering, setIsHovering] = useState(false)
 
@@ -16,6 +18,19 @@ export default function BuyNowPage() {
     businessName: '',
     googleLink: ''
   })
+
+  // Auto-fill from Google auth
+  useEffect(() => {
+    if (user) {
+      const parts = user.name.split(' ')
+      setFormData(prev => ({
+        ...prev,
+        firstName: parts[0] || '',
+        lastName: parts.slice(1).join(' ') || '',
+        email: user.email
+      }))
+    }
+  }, [user])
 
   // Subtle entrance animation on load
   useEffect(() => {
@@ -36,13 +51,14 @@ export default function BuyNowPage() {
     
     setIsSubmitting(true)
     try {
-      // Import axios dynamically or at top level. Let's just use fetch since we didn't import axios in this file
       const response = await fetch('http://localhost:3000/api/orders', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customerName: `${formData.firstName} ${formData.lastName}`,
           customerEmail: formData.email,
+          customerPhone: formData.phone,
           productType: productType === 'standard' ? 'Standard Card' : 'Metal Card',
           totalPrice: `₹${price.toLocaleString()}`,
           shippingAddress: formData.address
@@ -50,7 +66,8 @@ export default function BuyNowPage() {
       })
       
       if (response.ok) {
-        navigate('/confirmation')
+        const order = await response.json()
+        navigate('/confirmation', { state: { order } })
       } else {
         alert("Failed to place order. Please try again.")
       }
