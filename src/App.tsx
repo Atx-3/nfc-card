@@ -1,13 +1,14 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { CartProvider } from './contexts/CartContext'
 import LandingPage from './pages/LandingPage'
+import ShopPage from './pages/ShopPage'
 import BuyNowPage from './pages/BuyNowPage'
 import OrderConfirmationPage from './pages/OrderConfirmationPage'
 import LoginPage from './pages/LoginPage'
 import UserDashboard from './pages/UserDashboard'
 import AdminDashboard from './pages/AdminDashboard'
 
-// Redirect to /login if not authenticated
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth()
   const location = useLocation()
@@ -16,7 +17,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-// Redirect to / if not admin
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading, isAdmin } = useAuth()
   const location = useLocation()
@@ -30,6 +30,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
+      <Route path="/shop" element={<ShopPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/buy" element={<ProtectedRoute><BuyNowPage /></ProtectedRoute>} />
       <Route path="/confirmation" element={<ProtectedRoute><OrderConfirmationPage /></ProtectedRoute>} />
@@ -42,9 +43,11 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
+      <CartProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </CartProvider>
     </AuthProvider>
   )
 }
