@@ -1,5 +1,5 @@
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -18,17 +18,29 @@ model User {
   orders    Order[]
 }
 
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  price       Float
+  image       String?
+  badge       String?
+  inStock     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
 model Order {
-  id              String   @id @default(uuid())
-  orderNumber     String   @unique
+  id              String      @id @default(uuid())
+  orderNumber     String      @unique
   userId          String?
-  user            User?    @relation(fields: [userId], references: [id])
+  user            User?       @relation(fields: [userId], references: [id])
   customerName    String
   customerEmail   String
   customerPhone   String?
   productType     String
   totalPrice      String
-  status          String   @default("Order Placed")
+  status          String      @default("Order Placed")
   shippingAddress String?
-  createdAt       DateTime @default(now())
+  cartItems       String?
+  createdAt       DateTime    @default(now())
 }
