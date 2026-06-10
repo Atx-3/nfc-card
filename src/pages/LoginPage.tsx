@@ -1,17 +1,32 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import API_URL from '../lib/api'
 
 export default function LoginPage() {
-  const { user, isLoading } = useAuth()
+  const { user, isLoading, signInWithGoogle } = useAuth()
   const navigate = useNavigate()
+  const [signingIn, setSigningIn] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     if (!isLoading && user) {
       navigate(user.isAdmin ? '/admin' : '/dashboard', { replace: true })
     }
   }, [user, isLoading, navigate])
+
+  const handleGoogleSignIn = async () => {
+    setSigningIn(true)
+    setError('')
+    try {
+      await signInWithGoogle()
+    } catch (err: any) {
+      if (err.code !== 'auth/popup-closed-by-user') {
+        setError('Sign-in failed. Please try again.')
+      }
+    } finally {
+      setSigningIn(false)
+    }
+  }
 
   return (
     <div className="bg-surface text-on-surface min-h-screen font-sans flex items-center justify-center p-4">
@@ -29,13 +44,24 @@ export default function LoginPage() {
           <p className="font-body-md text-secondary">Sign in with Google to manage your NFC card, track orders, and more.</p>
         </div>
 
-        <a
-          href={`${API_URL}/api/auth/google`}
-          className="w-full bg-white text-black border border-outline-variant/30 py-4 rounded-xl font-label-sm uppercase tracking-widest hover:bg-gray-50 hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-3 relative z-10 cursor-pointer no-underline"
+        {error && (
+          <div className="mb-4 p-3 bg-error/10 border border-error/20 rounded-xl text-error font-body-md text-sm text-center relative z-10">
+            {error}
+          </div>
+        )}
+
+        <button
+          onClick={handleGoogleSignIn}
+          disabled={signingIn || isLoading}
+          className="w-full bg-white text-black border border-outline-variant/30 py-4 rounded-xl font-label-sm uppercase tracking-widest hover:bg-gray-50 hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-3 relative z-10 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google logo" className="w-5 h-5" />
-          Continue with Google
-        </a>
+          {signingIn ? (
+            <span className="w-5 h-5 border-2 border-gray-300 border-t-gray-700 rounded-full animate-spin" />
+          ) : (
+            <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="w-5 h-5" />
+          )}
+          {signingIn ? 'Signing in...' : 'Continue with Google'}
+        </button>
 
         <p className="text-center font-body-md text-xs text-secondary mt-6 relative z-10">
           By signing in, you agree to our Terms of Service. Your orders and data are securely stored.
